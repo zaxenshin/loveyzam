@@ -12,6 +12,7 @@ import {
   Pencil,
 } from 'lucide-react';
 import { playClick, playPlink, playChime, playPop } from '../utils/sfx';
+import { syncWithCloud, saveToCloud } from '../utils/firebase';
 
 type ScheduleColor =
   | 'pink' | 'rose' | 'blue' | 'cyan' | 'teal' | 'green' | 'lime'
@@ -94,6 +95,21 @@ export const CalendarView: React.FC = () => {
     return defaultItems;
   });
 
+  // REALTIME CLOUD SYNC WITH FIREBASE
+  useEffect(() => {
+    const unsubscribe = syncWithCloud('schedules', items, (cloudItems) => {
+      setItems(cloudItems);
+      localStorage.setItem(storageKey, JSON.stringify(cloudItems));
+    });
+    return () => unsubscribe();
+  }, []);
+
+  const updateItems = (newItems: ScheduleItem[]) => {
+    setItems(newItems);
+    localStorage.setItem(storageKey, JSON.stringify(newItems));
+    saveToCloud('schedules', newItems);
+  };
+
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDateStr, setSelectedDateStr] = useState<string>(
     new Date().toISOString().split('T')[0]
@@ -107,10 +123,6 @@ export const CalendarView: React.FC = () => {
   const [formCategory, setFormCategory] = useState<ScheduleItem['category']>('class');
   const [formCreator, setFormCreator] = useState<'Yza' | 'Zam'>('Yza');
   const [formColor, setFormColor] = useState<ScheduleColor>('pink');
-
-  useEffect(() => {
-    localStorage.setItem(storageKey, JSON.stringify(items));
-  }, [items]);
 
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
@@ -161,21 +173,20 @@ export const CalendarView: React.FC = () => {
     if (!formTitle.trim()) return;
 
     if (editingId) {
-      setItems((prev) =>
-        prev.map((item) =>
-          item.id === editingId
-            ? {
-                ...item,
-                title: formTitle.trim(),
-                date: formDate,
-                time: formTime,
-                category: formCategory,
-                createdBy: formCreator,
-                color: formColor,
-              }
-            : item
-        )
+      const updated = items.map((item) =>
+        item.id === editingId
+          ? {
+              ...item,
+              title: formTitle.trim(),
+              date: formDate,
+              time: formTime,
+              category: formCategory,
+              createdBy: formCreator,
+              color: formColor,
+            }
+          : item
       );
+      updateItems(updated);
       setSelectedDateStr(formDate);
       playChime();
     } else {
@@ -189,7 +200,8 @@ export const CalendarView: React.FC = () => {
         color: formColor,
         isDone: false,
       };
-      setItems((prev) => [...prev, newItem]);
+      const updated = [...items, newItem];
+      updateItems(updated);
       setSelectedDateStr(formDate);
       playPop();
     }
@@ -199,14 +211,16 @@ export const CalendarView: React.FC = () => {
   };
 
   const toggleDone = (id: string) => {
-    setItems((prev) =>
-      prev.map((item) => (item.id === id ? { ...item, isDone: !item.isDone } : item))
+    const updated = items.map((item) =>
+      item.id === id ? { ...item, isDone: !item.isDone } : item
     );
+    updateItems(updated);
     playClick();
   };
 
   const deleteItem = (id: string) => {
-    setItems((prev) => prev.filter((item) => item.id !== id));
+    const updated = items.filter((item) => item.id !== id);
+    updateItems(updated);
     if (editingId === id) {
       setShowForm(false);
       resetForm();
@@ -234,9 +248,6 @@ export const CalendarView: React.FC = () => {
       ref={containerRef}
       className="flex flex-col gap-3 font-sans text-sm h-full min-h-0 overflow-y-auto overflow-x-hidden [&::-webkit-scrollbar]:w-3 [&::-webkit-scrollbar-track]:bg-[#FFF8F1] [&::-webkit-scrollbar-thumb]:bg-[#F4C2D7] [&::-webkit-scrollbar-thumb]:border-2 [&::-webkit-scrollbar-thumb]:border-[#272426] [&::-webkit-scrollbar-thumb]:rounded-full"
     >
-      {/* ═══════════════════════════════════════
-          MONTH HEADER — always on top, outside scroll
-      ═══════════════════════════════════════ */}
       <div
         className={`flex items-center justify-between bg-[#812D45] text-white rounded-2xl border-2 border-[#272426] shadow-retro-sm shrink-0 ${
           compact ? 'px-3 py-2.5' : 'px-5 py-4'
@@ -277,14 +288,9 @@ export const CalendarView: React.FC = () => {
         </button>
       </div>
 
-      {/* ═══════════════════════════════════════
-          CALENDAR GRID
-          • Wrapper matches rounded borders (overflow-hidden clips the scrollbar neatly)
-      ═══════════════════════════════════════ */}
       <div
         className="border-2 border-[#272426] rounded-2xl shadow-retro-sm bg-white shrink-0 overflow-hidden flex flex-col"
       >
-        {/* FIXED WEEKDAYS */}
         <div
           className={`shrink-0 grid grid-cols-7 bg-[#FFF8F1] border-b-2 border-[#272426] text-center font-mono font-black ${
             compact ? 'text-[10px] py-1.5' : 'text-base sm:text-xl py-3'
@@ -292,7 +298,7 @@ export const CalendarView: React.FC = () => {
         >
           {(compact
             ? ['S', 'M', 'T', 'W', 'T', 'F', 'S']
-            : ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+            : ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
           ).map((day, i) => (
             <div key={i} className="text-[#812D45]">
               {day}
@@ -300,7 +306,6 @@ export const CalendarView: React.FC = () => {
           ))}
         </div>
 
-        {/* SCROLLABLE DAYS */}
         <div
           className={`flex-1 overflow-y-auto min-h-0 bg-gray-200 [&::-webkit-scrollbar]:w-3 [&::-webkit-scrollbar-track]:bg-[#FFF8F1] [&::-webkit-scrollbar-thumb]:bg-[#F4C2D7] [&::-webkit-scrollbar-thumb]:border-2 [&::-webkit-scrollbar-thumb]:border-[#272426] [&::-webkit-scrollbar-thumb]:rounded-full ${
             compact ? 'max-h-[220px]' : 'max-h-[340px]'
@@ -432,9 +437,6 @@ export const CalendarView: React.FC = () => {
         </div>
       </div>
 
-      {/* ═══════════════════════════════════════
-          SELECTED DAY PANEL
-      ═══════════════════════════════════════ */}
       <div className="bg-[#FFF8F1] border-2 border-[#272426] rounded-2xl shadow-retro-sm overflow-hidden shrink-0">
         <div
           className={`flex items-center justify-between border-b-2 border-black/10 bg-white/80 ${
