@@ -95,6 +95,25 @@ export const RetroWindow: React.FC<RetroWindowProps> = ({
     setIsMaximized((v) => !v);
   };
 
+  const renderIcon = () => {
+    if (!icon) return null;
+    const isImagePath =
+      typeof icon === 'string' &&
+      (icon.includes('/') || icon.includes('.') || icon.startsWith('data:'));
+
+    if (isImagePath) {
+      return (
+        <img
+          src={icon}
+          alt="icon"
+          className="w-5 h-5 sm:w-6 sm:h-6 shrink-0 object-contain rounded-md"
+        />
+      );
+    }
+
+    return <span className="text-lg sm:text-xl shrink-0">{icon}</span>;
+  };
+
   const windowInner = (
     <>
       <div
@@ -102,7 +121,7 @@ export const RetroWindow: React.FC<RetroWindowProps> = ({
         onClick={() => playSparkle()}
       >
         <div className="flex items-center gap-2 overflow-hidden pr-2">
-          <span className="text-lg sm:text-xl shrink-0">{icon}</span>
+          {renderIcon()}
           <span
             className={`font-mono text-sm sm:text-base font-black uppercase tracking-wider truncate ${currentTheme.text}`}
           >
@@ -222,7 +241,7 @@ export const RetroWindow: React.FC<RetroWindowProps> = ({
     );
   }
 
-  // ═══ NORMAL — PLAIN DIV, NO motion/transform (para di ma-trap ang modals) ═══
+  // ═══ NORMAL — PLAIN DIV, NO motion/transform ═══
   return (
     <div
       className={`flex flex-col rounded-t-xl rounded-b-lg border-2 ${currentTheme.border} ${currentTheme.bg} shadow-retro overflow-hidden relative w-full min-w-0 z-0 ${className}`}
