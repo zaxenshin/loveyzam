@@ -6,17 +6,32 @@ import { playChime, playSparkle, playHeartbeat, playPlink } from '../utils/sfx';
 
 type Expression = 'happy' | 'surprised' | 'neutral' | 'sad' | 'angry' | 'fearful' | 'disgusted';
 
-const BASE_PATH = import.meta.env.BASE_URL || '/';
+// Smart multi-path checking (handles case-sensitivity on GitHub Pages, .GIF vs .gif, and subfolder paths)
+const getPaths = (name: string) => {
+  const base = import.meta.env.BASE_URL || '/';
+  const cleanBase = base.endsWith('/') ? base : `${base}/`;
+  const upName = name.charAt(0).toUpperCase() + name.slice(1);
+  
+  return [
+    `${cleanBase}reactions/${name}.gif`,
+    `${cleanBase}reactions/${name}.GIF`,
+    `${cleanBase}reactions/${upName}.gif`,
+    `${cleanBase}reactions/${upName}.GIF`,
+    `${cleanBase}${name}.gif`,
+    `${cleanBase}${name}.GIF`,
+    `reactions/${name}.gif`,
+    `reactions/${name}.GIF`
+  ];
+};
 
-// Smart multi-path checking (handles public/ directly, public/reactions/, and typos)
 const REACTIONS: Record<Expression, { emoji: string; text: string; img: string[]; color: string }> = {
-  happy:     { emoji: '💕', text: 'I LOVE YOU!',       img: [`${BASE_PATH}reactions/happy.gif`, `${BASE_PATH}happy.gif`],     color: '#F4C2D7' },
-  surprised: { emoji: '✨', text: 'OMG SO CUTE!',      img: [`${BASE_PATH}reactions/surprised.gif`, `${BASE_PATH}reactions/suprised.gif`, `${BASE_PATH}surprised.gif`, `${BASE_PATH}suprised.gif`], color: '#CAF0F8' },
-  neutral:   { emoji: '😊', text: 'Smile na loveey!',     img: [`${BASE_PATH}reactions/neutral.gif`, `${BASE_PATH}neutral.gif`],   color: '#FFF5F8' },
-  sad:       { emoji: '🥺', text: "Kushkuminaniii",  img: [`${BASE_PATH}reactions/sad.gif`, `${BASE_PATH}sad.gif`],       color: '#DDE8FA' },
-  angry:     { emoji: '😤', text: 'Hala ang fierce!',   img: [`${BASE_PATH}reactions/angry.gif`, `${BASE_PATH}angry.gif`],     color: '#FFD6D6' },
-  fearful:   { emoji: '😱', text: 'Skeriii',    img: [`${BASE_PATH}reactions/fearful.gif`, `${BASE_PATH}fearful.gif`],   color: '#E8D4F5' },
-  disgusted: { emoji: '🤢', text: 'KADERDERRRR!',        img: [`${BASE_PATH}reactions/disgusted.gif`, `${BASE_PATH}disgusted.gif`], color: '#D4F5D4' },
+  happy:     { emoji: '💕', text: 'I LOVE YOU!',       img: getPaths('happy'),     color: '#F4C2D7' },
+  surprised: { emoji: '✨', text: 'WOAAAAA',      img: [...getPaths('surprised'), ...getPaths('suprised')], color: '#CAF0F8' },
+  neutral:   { emoji: '😊', text: 'Smile na loveey!',  img: getPaths('neutral'),   color: '#FFF5F8' },
+  sad:       { emoji: '🥺', text: "wawa naman ang bebe",    img: getPaths('sad'),       color: '#DDE8FA' },
+  angry:     { emoji: '😤', text: 'Gagalet yarn?',  img: getPaths('angry'),     color: '#FFD6D6' },
+  fearful:   { emoji: '😱', text: 'Skeriii',           img: getPaths('fearful'),   color: '#E8D4F5' },
+  disgusted: { emoji: '🤢', text: 'KADERDERRRR!',      img: getPaths('disgusted'), color: '#D4F5D4' },
 };
 
 const COUNTDOWN_OPTIONS = [
@@ -55,9 +70,11 @@ export default function PhotoBooth() {
   useEffect(() => {
     const loadModels = async () => {
       try {
+        const base = import.meta.env.BASE_URL || '/';
+        const cleanBase = base.endsWith('/') ? base : `${base}/`;
         await Promise.all([
-          faceapi.nets.tinyFaceDetector.loadFromUri(`${BASE_PATH}models`),
-          faceapi.nets.faceExpressionNet.loadFromUri(`${BASE_PATH}models`),
+          faceapi.nets.tinyFaceDetector.loadFromUri(`${cleanBase}models`),
+          faceapi.nets.faceExpressionNet.loadFromUri(`${cleanBase}models`),
         ]);
         setModelsLoaded(true);
         playSparkle();
@@ -426,7 +443,7 @@ export default function PhotoBooth() {
                     animate={{ scale: 1, y: 0, opacity: 1 }}
                     exit={{ scale: 0.5, y: 50, opacity: 0 }}
                     transition={{ type: 'spring', stiffness: 200, damping: 18 }}
-                    className="relative bg-gradient-to-br from-[#FFF5F8] to-[#F4FCFE] rounded-2xl border-4 border-[#F4C2D7] shadow-[6px_6px_0px_rgba(0,0,0,0.9)] p-5 max-w-3xl w-full"
+                    className="relative bg-gradient-to-br from-[#FFF5F8] to-[#F4FCFE] rounded-2xl border-4 border-[#F4C2D7] shadow-[6px_6px_0px_rgba(0,0,0,0.9)] p-5 max-w-3xl w-full opacity-100"
                     onClick={e => e.stopPropagation()}
                   >
                     <button

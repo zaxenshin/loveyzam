@@ -246,7 +246,7 @@ export const CalendarView: React.FC = () => {
   return (
     <div
       ref={containerRef}
-      className="flex flex-col gap-3 font-sans text-sm h-full min-h-0 overflow-y-auto overflow-x-hidden [&::-webkit-scrollbar]:w-3 [&::-webkit-scrollbar-track]:bg-[#FFF8F1] [&::-webkit-scrollbar-thumb]:bg-[#F4C2D7] [&::-webkit-scrollbar-thumb]:border-2 [&::-webkit-scrollbar-thumb]:border-[#272426] [&::-webkit-scrollbar-thumb]:rounded-full"
+      className="flex flex-col gap-3 font-sans text-sm h-full min-h-0 overflow-y-auto overflow-x-hidden pr-1 [&::-webkit-scrollbar]:w-3 [&::-webkit-scrollbar-track]:bg-[#FFF8F1] [&::-webkit-scrollbar-thumb]:bg-[#F4C2D7] [&::-webkit-scrollbar-thumb]:border-2 [&::-webkit-scrollbar-thumb]:border-[#272426] [&::-webkit-scrollbar-thumb]:rounded-full"
     >
       <div
         className={`flex items-center justify-between bg-[#812D45] text-white rounded-2xl border-2 border-[#272426] shadow-retro-sm shrink-0 ${
@@ -288,11 +288,10 @@ export const CalendarView: React.FC = () => {
         </button>
       </div>
 
-      <div
-        className="border-2 border-[#272426] rounded-2xl shadow-retro-sm bg-white shrink-0 overflow-hidden flex flex-col"
-      >
+      <div className="border-2 border-[#272426] rounded-2xl shadow-retro-sm bg-white shrink-0 overflow-hidden flex flex-col">
+        {/* Weekdays — slight right pad para aligned sa days + hindi dikit sa edge */}
         <div
-          className={`shrink-0 grid grid-cols-7 bg-[#FFF8F1] border-b-2 border-[#272426] text-center font-mono font-black ${
+          className={`shrink-0 grid grid-cols-7 bg-[#FFF8F1] border-b-2 border-[#272426] text-center font-mono font-black pr-3 ${
             compact ? 'text-[10px] py-1.5' : 'text-base sm:text-xl py-3'
           }`}
         >
@@ -306,12 +305,13 @@ export const CalendarView: React.FC = () => {
           ))}
         </div>
 
+        {/* Days scroll — content may right pad para di dikit sa scrollbar */}
         <div
-          className={`flex-1 overflow-y-auto min-h-0 bg-gray-200 [&::-webkit-scrollbar]:w-3 [&::-webkit-scrollbar-track]:bg-[#FFF8F1] [&::-webkit-scrollbar-thumb]:bg-[#F4C2D7] [&::-webkit-scrollbar-thumb]:border-2 [&::-webkit-scrollbar-thumb]:border-[#272426] [&::-webkit-scrollbar-thumb]:rounded-full ${
+          className={`flex-1 overflow-y-auto min-h-0 bg-gray-200 [scrollbar-gutter:stable] [&::-webkit-scrollbar]:w-3 [&::-webkit-scrollbar-track]:bg-[#FFF8F1] [&::-webkit-scrollbar-thumb]:bg-[#F4C2D7] [&::-webkit-scrollbar-thumb]:border-2 [&::-webkit-scrollbar-thumb]:border-[#272426] [&::-webkit-scrollbar-thumb]:rounded-full ${
             compact ? 'max-h-[220px]' : 'max-h-[340px]'
           }`}
         >
-          <div className="grid grid-cols-7 gap-px">
+          <div className="grid grid-cols-7 gap-px pr-3">
             {Array.from({ length: firstDayOfMonth }).map((_, i) => (
               <div
                 key={`empty-${i}`}
