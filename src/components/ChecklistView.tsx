@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, Trash2, CheckSquare, Square } from 'lucide-react';
+import { playClick, playPlink, playPop } from '../utils/sfx';
+import { syncWithCloud, saveToCloud } from '../utils/firebase';
 
 export interface TodoItem {
   id: string;
@@ -18,6 +20,7 @@ interface ChecklistViewProps {
 }
 
 const STORAGE_KEY = 'yzam_tasks_final_v3';
+const CLOUD_KEY = 'tasks';
 
 // Helper: basahin lahat ng tasks from localStorage
 function loadAllTasks(): TodoItem[] {
@@ -38,10 +41,10 @@ function getDefaultTasks(): TodoItem[] {
   ];
 }
 
-// Helper: i-save + sabihan lahat ng checklist na mag-refresh
+// Helper: i-save local + cloud + sabihan lahat ng checklist na mag-refresh
 function saveAllTasks(tasks: TodoItem[]) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks));
-  // Custom event para sa same-tab components
+  saveToCloud(CLOUD_KEY, tasks);
   window.dispatchEvent(new CustomEvent('yzam-tasks-changed'));
 }
 
@@ -60,9 +63,7 @@ export const ChecklistView: React.FC<ChecklistViewProps> = ({
   }, []);
 
   useEffect(() => {
-    // Listen to our custom event (same browser tab)
     window.addEventListener('yzam-tasks-changed', refresh);
-    // Listen to storage event (other browser tabs / windows)
     window.addEventListener('storage', refresh);
 
     return () => {
@@ -70,6 +71,17 @@ export const ChecklistView: React.FC<ChecklistViewProps> = ({
       window.removeEventListener('storage', refresh);
     };
   }, [refresh]);
+
+  // ⚡ REALTIME CLOUD SYNC (laptop ↔ phone)
+  useEffect(() => {
+    const local = loadAllTasks();
+    const unsubscribe = syncWithCloud(CLOUD_KEY, local, (cloudTasks) => {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(cloudTasks));
+      setTodos(cloudTasks);
+      window.dispatchEvent(new CustomEvent('yzam-tasks-changed'));
+    });
+    return () => unsubscribe();
+  }, []);
 
   // Filter only the tasks that belong to this scope
   const filteredTodos = todos.filter((t) => t.scope === scope);
@@ -91,6 +103,7 @@ export const ChecklistView: React.FC<ChecklistViewProps> = ({
     const updated = [newItem, ...loadAllTasks()];
     saveAllTasks(updated);
     setNewTodo('');
+    playPop();
   };
 
   const toggleTodo = (id: string) => {
@@ -99,12 +112,14 @@ export const ChecklistView: React.FC<ChecklistViewProps> = ({
       t.id === id ? { ...t, isDone: !t.isDone } : t
     );
     saveAllTasks(updated);
+    playClick();
   };
 
   const deleteTodo = (id: string) => {
     const all = loadAllTasks();
     const updated = all.filter((t) => t.id !== id);
     saveAllTasks(updated);
+    playPlink();
   };
 
   return (

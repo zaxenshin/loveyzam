@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, Trash2, Edit3, Check, X, Image as ImageIcon, Upload, Link, ZoomIn, Loader2 } from 'lucide-react';
 import { playChime, playSparkle, playPlink, playWhoosh } from '../utils/sfx';
+import { syncWithCloud, saveToCloud } from '../utils/firebase';
 
 interface Photo {
   id: string;
@@ -18,6 +19,8 @@ interface ScrapbookViewProps {
 }
 
 const rotations = ['-rotate-3', 'rotate-2', '-rotate-2', 'rotate-3', '-rotate-1', 'rotate-1'];
+const storageKey = 'yzam_scrapbook_v1';
+const CLOUD_KEY = 'scrapbook';
 
 // 🗜️ AUTOMATIC CANVAS COMPRESSOR (Resizes oversized images to ~200KB to prevent localStorage crash)
 const compressImage = (base64Str: string, maxWidth = 1000, quality = 0.7): Promise<string> => {
@@ -49,8 +52,9 @@ const compressImage = (base64Str: string, maxWidth = 1000, quality = 0.7): Promi
 };
 
 export const ScrapbookView: React.FC<ScrapbookViewProps> = ({ isEditMode }) => {
-  const storageKey = 'yzam_scrapbook_v1';
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const skipNextSave = useRef(false);
+  const hydrated = useRef(false);
 
   // SAFE INITIALIZER: Wraps in try-catch so corrupted localStorage won't white-screen the app
   const [photos, setPhotos] = useState<Photo[]>(() => {
@@ -81,14 +85,51 @@ export const ScrapbookView: React.FC<ScrapbookViewProps> = ({ isEditMode }) => {
   const [lightboxPhoto, setLightboxPhoto] = useState<Photo | null>(null);
   const [isDragging, setIsDragging] = useState(false);
 
-  // Safe save to localStorage
+  // Safe save to localStorage + push to Firebase Cloud
   useEffect(() => {
     try {
       localStorage.setItem(storageKey, JSON.stringify(photos));
     } catch (e) {
-      alert('Storage is full! Try deleting some older photos first. 💔');
+      console.error('Storage quota exceeded:', e);
     }
+
+    if (!hydrated.current) return;
+    if (skipNextSave.current) {
+      skipNextSave.current = false;
+      return;
+    }
+    saveToCloud(CLOUD_KEY, photos);
   }, [photos]);
+
+  // Initial cloud sync + real-time cloud listener
+  useEffect(() => {
+    let unsub: (() => void) | void;
+
+    const boot = async () => {
+      const local = (() => {
+        try {
+          const raw = localStorage.getItem(storageKey);
+          return raw ? (JSON.parse(raw) as Photo[]) : photos;
+        } catch {
+          return photos;
+        }
+      })();
+
+      unsub = await syncWithCloud(CLOUD_KEY, local, (cloudData) => {
+        skipNextSave.current = true;
+        setPhotos(Array.isArray(cloudData) ? cloudData : []);
+      });
+
+      hydrated.current = true;
+    };
+
+    boot();
+
+    return () => {
+      if (typeof unsub === 'function') unsub();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const getToday = () => {
     const d = new Date();

@@ -1,8 +1,9 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Mail, X, Heart, Sparkles } from 'lucide-react';
 import { playChime, playHeartbeat, playSparkle, playPlink } from '../utils/sfx';
+import { syncWithCloud, saveToCloud } from '../utils/firebase';
 
 interface Letter {
   id: string;
@@ -14,28 +15,56 @@ interface Letter {
   createdAt: number;
 }
 
+const STORAGE_KEY = 'yzam_open_when_letters_v1';
+const CLOUD_KEY = 'letters';
+
 export const LetterPopup: React.FC = () => {
   const [showNotif, setShowNotif] = useState(false);
   const [showLetter, setShowLetter] = useState(false);
   const [currentLetter, setCurrentLetter] = useState<Letter | null>(null);
-
-  const loadLetters = (): Letter[] => {
+  const [letters, setLetters] = useState<Letter[]>(() => {
     try {
-      const saved = localStorage.getItem('yzam_open_when_letters_v1');
+      const saved = localStorage.getItem(STORAGE_KEY);
       if (saved) return JSON.parse(saved);
     } catch {}
     return [];
-  };
+  });
+
+  const hydrated = useRef(false);
+
+  // REALTIME CLOUD SYNC FOR SURPRISE POPUP
+  useEffect(() => {
+    const local = (() => {
+      try {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        return saved ? (JSON.parse(saved) as Letter[]) : [];
+      } catch {
+        return [];
+      }
+    })();
+
+    const unsub = syncWithCloud<Letter[]>(CLOUD_KEY, local, (cloudLetters) => {
+      if (Array.isArray(cloudLetters)) {
+        setLetters(cloudLetters);
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(cloudLetters));
+      }
+    });
+
+    hydrated.current = true;
+
+    return () => {
+      if (typeof unsub === 'function') unsub();
+    };
+  }, []);
 
   const getAvailable = useCallback(() => {
-    const all = loadLetters();
     const today = new Date().toISOString().split('T')[0];
-    return all.filter(l => {
+    return letters.filter(l => {
       if (l.isOpened) return false;
       if (l.unlockDate && today < l.unlockDate) return false;
       return true;
     });
-  }, []);
+  }, [letters]);
 
   const triggerSurprise = useCallback((force = false) => {
     const available = getAvailable();
@@ -82,11 +111,12 @@ export const LetterPopup: React.FC = () => {
     setShowLetter(true);
 
     if (!currentLetter.id.startsWith('temp-')) {
-      const all = loadLetters();
-      const updated = all.map(l =>
+      const updated = letters.map(l =>
         l.id === currentLetter.id ? { ...l, isOpened: true } : l
       );
-      localStorage.setItem('yzam_open_when_letters_v1', JSON.stringify(updated));
+      setLetters(updated);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+      saveToCloud(CLOUD_KEY, updated);
     }
   };
 

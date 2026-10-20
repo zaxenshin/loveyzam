@@ -1,21 +1,23 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, Trash2, Mail, Lock, Unlock, X, Heart } from 'lucide-react';
+import { syncWithCloud, saveToCloud } from '../utils/firebase';
 
 export interface Letter {
   id: string;
-  title: string;          
-  content: string;        
+  title: string;
+  content: string;
   createdBy: 'Yza' | 'Zam';
-  unlockDate?: string;    
+  unlockDate?: string;
   isOpened: boolean;
   createdAt: number;
 }
 
-export const OpenWhenLetters: React.FC<{ isEditMode: boolean }> = ({ isEditMode }) => {
-  const storageKey = 'yzam_open_when_letters_v1';
+const storageKey = 'yzam_open_when_letters_v1';
+const CLOUD_KEY = 'letters';
 
+export const OpenWhenLetters: React.FC<{ isEditMode: boolean }> = ({ isEditMode }) => {
   const [letters, setLetters] = useState<Letter[]>(() => {
     const saved = localStorage.getItem(storageKey);
     if (saved) {
@@ -49,9 +51,49 @@ export const OpenWhenLetters: React.FC<{ isEditMode: boolean }> = ({ isEditMode 
   const [newUnlockDate, setNewUnlockDate] = useState('');
   const [createdBy, setCreatedBy] = useState<'Yza' | 'Zam'>('Zam');
 
+  const skipNextSave = useRef(false);
+  const hydrated = useRef(false);
+
+  // Persist local + push cloud (skip one tick after cloud pull to avoid echo)
   useEffect(() => {
     localStorage.setItem(storageKey, JSON.stringify(letters));
+    if (!hydrated.current) return;
+    if (skipNextSave.current) {
+      skipNextSave.current = false;
+      return;
+    }
+    saveToCloud(CLOUD_KEY, letters);
   }, [letters]);
+
+  // Initial cloud sync + live listener
+  useEffect(() => {
+    let unsub: (() => void) | void;
+
+    const boot = async () => {
+      const local = (() => {
+        try {
+          const raw = localStorage.getItem(storageKey);
+          return raw ? (JSON.parse(raw) as Letter[]) : letters;
+        } catch {
+          return letters;
+        }
+      })();
+
+      unsub = await syncWithCloud(CLOUD_KEY, local, (cloudData) => {
+        skipNextSave.current = true;
+        setLetters(Array.isArray(cloudData) ? cloudData : []);
+      });
+
+      hydrated.current = true;
+    };
+
+    boot();
+
+    return () => {
+      if (typeof unsub === 'function') unsub();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleAddLetter = (e: React.FormEvent) => {
     e.preventDefault();
@@ -249,7 +291,7 @@ export const OpenWhenLetters: React.FC<{ isEditMode: boolean }> = ({ isEditMode 
                         e.stopPropagation();
                         deleteLetter(letter.id);
                       }}
-                      className="p-1.5 bg-white border border-gray-200 shadow-sm rounded-lg text-red-300 hover:text-red-500 hover:bg-red-50 transition-colors"
+                      className="p-1.5 bg-[#ffffff] border border-gray-200 shadow-sm rounded-lg text-red-300 hover:text-red-500 hover:bg-red-50 transition-colors"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                     </motion.button>

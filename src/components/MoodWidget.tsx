@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Edit3, Check, X } from 'lucide-react';
+import { syncWithCloud, saveToCloud } from '../utils/firebase';
 
 interface MoodData {
   text: string;
@@ -20,8 +21,10 @@ const MOOD_EMOJIS = [
 export const MoodWidget: React.FC<MoodWidgetProps> = ({ name }) => {
   const currentKey = `yzam_current_mood_${name}`;
   const historyKey = `yzam_mood_history_${name}`;
+  const CLOUD_KEY = `moods/${name}`;
+  const CLOUD_HISTORY_KEY = `mood_history/${name}`;
 
-  const defaultMood = name === 'Yza'
+  const defaultMood: MoodData = name === 'Yza'
     ? { text: 'Soft days, warm drinks, & quiet pages', emoji: '📖', timestamp: new Date().toISOString() }
     : { text: 'Building YZAM', emoji: '💻', timestamp: new Date().toISOString() };
 
@@ -34,9 +37,53 @@ export const MoodWidget: React.FC<MoodWidgetProps> = ({ name }) => {
   const [draftText, setDraftText] = useState(mood.text);
   const [draftEmoji, setDraftEmoji] = useState(mood.emoji);
 
+  const skipNextSave = useRef(false);
+  const hydrated = useRef(false);
+
+  // Local + cloud persist
   useEffect(() => {
     localStorage.setItem(currentKey, JSON.stringify(mood));
-  }, [mood, currentKey]);
+    if (!hydrated.current) return;
+    if (skipNextSave.current) {
+      skipNextSave.current = false;
+      return;
+    }
+    saveToCloud(CLOUD_KEY, mood);
+  }, [mood, currentKey, CLOUD_KEY]);
+
+  // Boot: upload local if cloud empty + live listen
+  useEffect(() => {
+    let unsub: (() => void) | void;
+
+    const boot = async () => {
+      const local = (() => {
+        try {
+          const raw = localStorage.getItem(currentKey);
+          return raw ? (JSON.parse(raw) as MoodData) : mood;
+        } catch {
+          return mood;
+        }
+      })();
+
+      unsub = await syncWithCloud<MoodData>(CLOUD_KEY, local, (cloudData) => {
+        if (cloudData && typeof cloudData === 'object' && 'text' in cloudData) {
+          skipNextSave.current = true;
+          setMood(cloudData);
+          setDraftText(cloudData.text);
+          setDraftEmoji(cloudData.emoji);
+        }
+      });
+
+      hydrated.current = true;
+    };
+
+    boot();
+
+    return () => {
+      if (typeof unsub === 'function') unsub();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [name]);
 
   const handleSave = () => {
     if (!draftText.trim()) return;
@@ -49,10 +96,11 @@ export const MoodWidget: React.FC<MoodWidgetProps> = ({ name }) => {
 
     setMood(newMood);
 
-    // Save to history list for future mood graph / analytics
-    const history = JSON.parse(localStorage.getItem(historyKey) || '[]');
-    history.push(newMood);
-    localStorage.setItem(historyKey, JSON.stringify(history));
+    // History: local + cloud
+    const history = JSON.parse(localStorage.getItem(historyKey) || '[]') as MoodData[];
+    const nextHistory = [...history, newMood];
+    localStorage.setItem(historyKey, JSON.stringify(nextHistory));
+    saveToCloud(CLOUD_HISTORY_KEY, nextHistory);
 
     setIsEditing(false);
   };

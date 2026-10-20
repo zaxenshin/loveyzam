@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { Plus, Trash2, Quote } from 'lucide-react';
 import { MoodWidget } from './MoodWidget';
 import ToothOfTheDay from './ToothOfTheDay';
-import ZamTerminal from './ZamTerminal'; // 🆕 NEW IMPORT
+import ZamTerminal from './ZamTerminal';
+import { syncWithCloud, saveToCloud } from '../utils/firebase';
 
 interface TabData {
   id: string;
@@ -31,7 +32,8 @@ export const DynamicProfile: React.FC<DynamicProfileProps> = ({
   onTabsChange,
   onTabSelect 
 }) => {
-  const storageKey = `yzam_profile_v7_${owner}`; 
+  const storageKey = `yzam_profile_v7_${owner}`;
+  const CLOUD_KEY = `profiles/${owner}`;
   
   const defaultData: ProfileData = {
     mood: owner === 'Yza' ? "Soft days, warm drinks, & quiet pages 📖✨" : "Building YZAM 💻☕",
@@ -51,10 +53,53 @@ export const DynamicProfile: React.FC<DynamicProfileProps> = ({
     return saved ? JSON.parse(saved) : defaultData;
   });
 
+  const skipNextSave = useRef(false);
+  const hydrated = useRef(false);
+
+  // Local + cloud
   useEffect(() => {
     onTabsChange(data.tabs.map(t => t.title));
     localStorage.setItem(storageKey, JSON.stringify(data));
-  }, [data, onTabsChange, storageKey]);
+
+    if (!hydrated.current) return;
+    if (skipNextSave.current) {
+      skipNextSave.current = false;
+      return;
+    }
+    saveToCloud(CLOUD_KEY, data);
+  }, [data, onTabsChange, storageKey, CLOUD_KEY]);
+
+  // Boot sync + live listener
+  useEffect(() => {
+    let unsub: (() => void) | void;
+
+    const boot = async () => {
+      const local = (() => {
+        try {
+          const raw = localStorage.getItem(storageKey);
+          return raw ? (JSON.parse(raw) as ProfileData) : data;
+        } catch {
+          return data;
+        }
+      })();
+
+      unsub = await syncWithCloud<ProfileData>(CLOUD_KEY, local, (cloudData) => {
+        if (cloudData && typeof cloudData === 'object' && 'tabs' in cloudData) {
+          skipNextSave.current = true;
+          setData(cloudData);
+        }
+      });
+
+      hydrated.current = true;
+    };
+
+    boot();
+
+    return () => {
+      if (typeof unsub === 'function') unsub();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [owner]);
 
   const activeTab = data.tabs.find(t => t.title === activeTabTitle);
 
