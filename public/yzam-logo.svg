@@ -1,9 +1,72 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" fill="none">
-  <circle cx="64" cy="64" r="60" fill="#FFF8F1" stroke="#272426" stroke-width="6"/>
-  <circle cx="64" cy="64" r="50" fill="#F4C2D7" stroke="#272426" stroke-width="3"/>
-  <circle cx="64" cy="64" r="38" fill="#812D45"/>
-  <path d="M40 42 L52 42 L58 58 L64 42 L76 42 L64 68 L64 86 L52 86 L52 68 L40 42Z" fill="#FFF8F1"/>
-  <path d="M78 70 C78 66 82 64 86 64 C90 64 94 66 94 70 C94 76 86 84 86 84 C86 84 78 76 78 70Z" fill="#F4C2D7" stroke="#272426" stroke-width="2"/>
-  <circle cx="96" cy="48" r="3" fill="#FFF8F1"/>
-  <circle cx="34" cy="52" r="2" fill="#F4C2D7"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#FFE4EC"/>
+      <stop offset="100%" stop-color="#F7B6CB"/>
+    </linearGradient>
+    <linearGradient id="heart" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#FF7A9C"/>
+      <stop offset="100%" stop-color="#E0245E"/>
+    </linearGradient>
+    <linearGradient id="gloss" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.7"/>
+      <stop offset="100%" stop-color="#FFFFFF" stop-opacity="0"/>
+    </linearGradient>
+    <clipPath id="squircle">
+      <rect x="0" y="0" width="512" height="512" rx="116"/>
+    </clipPath>
+  </defs>
+
+  <g clip-path="url(#squircle)">
+    <!-- Background -->
+    <rect width="512" height="512" fill="url(#bg)"/>
+
+    <!-- Soft glow sa likod ng letters -->
+    <circle cx="256" cy="280" r="190" fill="#FFFFFF" opacity="0.35"/>
+
+    <!-- Glossy top shine -->
+    <path d="M0 0 H512 V170 Q256 230 0 170 Z" fill="url(#gloss)"/>
+
+    <!-- Dotted inner frame -->
+    <rect x="28" y="28" width="456" height="456" rx="92" fill="none"
+          stroke="#812D45" stroke-width="5" stroke-dasharray="2 14"
+          stroke-linecap="round" opacity="0.35"/>
+  </g>
+
+  <!-- ===== Retro 3D shadow layer (solid, walang blur) ===== -->
+  <g fill="none" stroke="#5A1A2E" stroke-width="44" stroke-linecap="round" stroke-linejoin="round" transform="translate(0 10)">
+    <path d="M122 200 L172 280 L222 200"/>
+    <path d="M172 280 L172 360"/>
+    <path d="M292 200 L390 200 L292 360 L390 360"/>
+  </g>
+
+  <!-- ===== Main letters Y Z ===== -->
+  <g fill="none" stroke="#812D45" stroke-width="44" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M122 200 L172 280 L222 200"/>
+    <path d="M172 280 L172 360"/>
+    <path d="M292 200 L390 200 L292 360 L390 360"/>
+  </g>
+
+  <!-- Highlight lines sa letters (shine) -->
+  <g fill="none" stroke="#FFFFFF" stroke-width="7" stroke-linecap="round" opacity="0.45">
+    <path d="M124 194 L150 236"/>
+    <path d="M300 193 L340 193"/>
+  </g>
+
+  <!-- ===== Heart crown sa taas ===== -->
+  <path d="M256 178 C206 146 192 122 192 102 C192 84 206 70 224 70 C238 70 250 78 256 90 C262 78 274 70 288 70 C306 70 320 84 320 102 C320 122 306 146 256 178 Z"
+        fill="#5A1A2E" transform="translate(0 8)"/>
+  <path d="M256 178 C206 146 192 122 192 102 C192 84 206 70 224 70 C238 70 250 78 256 90 C262 78 274 70 288 70 C306 70 320 84 320 102 C320 122 306 146 256 178 Z"
+        fill="url(#heart)" stroke="#FFFFFF" stroke-width="7" stroke-linejoin="round"/>
+  <ellipse cx="222" cy="98" rx="13" ry="8" fill="#FFFFFF" opacity="0.75" transform="rotate(-35 222 98)"/>
+
+  <!-- ===== Sparkles ===== -->
+  <path d="M96 96 L103 115 L122 122 L103 129 L96 148 L89 129 L70 122 L89 115 Z" fill="#FFC93C" stroke="#812D45" stroke-width="3" stroke-linejoin="round"/>
+  <path d="M420 392 L426 408 L442 414 L426 420 L420 436 L414 420 L398 414 L414 408 Z" fill="#FFC93C" stroke="#812D45" stroke-width="3" stroke-linejoin="round"/>
+  <circle cx="414" cy="110" r="7" fill="#FFFFFF"/>
+  <circle cx="96" cy="410" r="6" fill="#FFFFFF"/>
+
+  <!-- Mini hearts -->
+  <path d="M410 160 C396 150 390 143 390 136 C390 130 395 126 400 126 C404 126 408 129 410 132 C412 129 416 126 420 126 C425 126 430 130 430 136 C430 143 424 150 410 160 Z" fill="#FF85A1"/>
+  <path d="M104 372 C92 364 86 358 86 352 C86 347 90 343 95 343 C99 343 102 345 104 348 C106 345 109 343 113 343 C118 343 122 347 122 352 C122 358 116 364 104 372 Z" fill="#FF85A1"/>
 </svg>
