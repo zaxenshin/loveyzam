@@ -1,4 +1,4 @@
-import React, { useState, useEffect, lazy, Suspense } from 'react';
+import React, { useState, useEffect, lazy, Suspense, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import confetti from 'canvas-confetti';
 import { RetroWindow } from './components/RetroWindow';
@@ -10,13 +10,20 @@ import { ScrapbookView } from './components/ScrapbookView';
 import { LetterPopup } from './components/LetterPopup';
 import LoFiRadio from './components/LoFiRadio';
 import SystemStats from './components/SystemStats';
-import { Edit3, Eye, Quote, RefreshCw, X, Sparkles, Terminal } from 'lucide-react';
+import { Edit3, Eye, Quote, RefreshCw, X, Sparkles, Terminal, Music } from 'lucide-react';
 import { playChime, playHeartbeat, playSparkle, playPlink, playWhoosh } from './utils/sfx';
 import { SpotifyPlayer } from './components/SpotifyPlayer';
+import { UpdateFlowModal } from './components/UpdateFlowModal';
 
 const PhotoBooth = lazy(() => import('./components/PhotoBooth'));
 
 const LOGO_SRC = `${import.meta.env.BASE_URL}yzam-logo.svg`;
+
+// ==========================================
+// 🚨 PROPOSAL SWITCH (SAFE FOR GIT PUSH)
+// Gawing `true` kapag gusto mo na lumabas sa mismong live website!
+const IS_PROPOSAL_LIVE = false;
+// ==========================================
 
 const FloatingSparkles = () => {
   const sparkles = Array.from({ length: 15 });
@@ -48,6 +55,69 @@ const movieQuotes = [
 ];
 
 export default function App() {
+  
+  // LOGIC PARA SA SYSTEM UPDATE / TEST MODE
+  const [showUpdate, setShowUpdate] = useState(() => {
+    // 1. Kung nilagyan mo ng "?test=1" sa URL, ipapakita nya ALWAYS (for localhost testing!)
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('test') === '1') return true;
+
+    // 2. Kung false ang switch, matik hindi lalabas sa live (safe i-push)
+    if (!IS_PROPOSAL_LIVE) return false;
+
+    // 3. Normal behavior: lalabas lang kung di pa siya nakakapag YES.
+    return localStorage.getItem('yzam_v2_accepted') !== 'true';
+  });
+
+  // 🎵 BACKGROUND MUSIC AUTOPLAY & TOGGLE LOGIC
+  const bgAudioRef = useRef<HTMLAudioElement>(null);
+  const [isBgMusicOn, setIsBgMusicOn] = useState(true);
+
+  useEffect(() => {
+    const audio = bgAudioRef.current;
+    if (!audio) return;
+
+    audio.volume = 0.4; // Soft volume for background instrumental
+
+    const attemptPlay = () => {
+      audio.play()
+        .then(() => {
+          setIsBgMusicOn(true);
+        })
+        .catch(() => {
+          // If blocked by browser policy, wait for first user click/tap anywhere
+          const handleFirstInteraction = () => {
+            audio.play().then(() => {
+              setIsBgMusicOn(true);
+            }).catch(() => {});
+            
+            window.removeEventListener('click', handleFirstInteraction);
+            window.removeEventListener('touchstart', handleFirstInteraction);
+          };
+
+          window.addEventListener('click', handleFirstInteraction);
+          window.addEventListener('touchstart', handleFirstInteraction);
+        });
+    };
+
+    attemptPlay();
+  }, []);
+
+  const toggleBgMusic = () => {
+    if (bgAudioRef.current) {
+      if (isBgMusicOn) {
+        bgAudioRef.current.pause();
+        setIsBgMusicOn(false);
+      } else {
+        bgAudioRef.current.play()
+          .then(() => {
+            setIsBgMusicOn(true);
+          })
+          .catch((err) => console.log('Play error:', err));
+      }
+    }
+  };
+
   const [isBooting, setIsBooting] = useState(true);
   const [loadingText, setLoadingText] = useState('Initializing YZAM OS...');
 
@@ -131,6 +201,23 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-grid-paper flex flex-col font-sans select-none overflow-x-hidden pb-14 text-sm relative">
+      
+      {/* 🎵 BACKGROUND AUDIO TAG */}
+      <audio 
+        ref={bgAudioRef} 
+        src={`${import.meta.env.BASE_URL}bg-instrumental.mp3`.replace(/\/+/g, '/')} 
+        loop 
+      />
+
+      {/* SYSTEM UPDATE TAKEOVER OVERLAY */}
+      {showUpdate && (
+        <UpdateFlowModal 
+          onComplete={() => {
+            setShowUpdate(false);
+          }} 
+        />
+      )}
+
       <FloatingSparkles />
 
       <header className="bg-[#F0F9FF] border-b-2 border-[#272426] px-4 py-2.5 flex items-center justify-between shadow-retro-sm sticky top-0 z-40">
@@ -155,24 +242,22 @@ export default function App() {
         </div>
 
         <div className="flex items-center gap-2.5 font-mono font-bold">
-          {activeTabShared !== '🎧 Music' && openWindows.shared && (
-            <motion.button
-              whileHover={{ scale: 1.05, y: -2 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={() => {
-                playPlink();
-                setActiveTabShared('🎧 Music');
-              }}
-              className="px-3 py-1.5 bg-[#272426] border-2 border-[#F4C2D7] rounded-lg flex items-center gap-2 shadow-retro-sm text-xs transition-colors hover:bg-black group"
-            >
-              <div className="w-3.5 h-3.5 rounded-full bg-gradient-to-tr from-[#F4C2D7] to-[#812D45] flex items-center justify-center animate-[spin_3s_linear_infinite]">
-                <div className="w-1 h-1 bg-white rounded-full" />
-              </div>
-              <span className="hidden sm:inline text-[#CAF0F8] uppercase tracking-wider font-bold text-[10px]">
-                Now Playing
-              </span>
-            </motion.button>
-          )}
+          
+          {/* BG MUSIC TOGGLE BUTTON */}
+          <motion.button
+            whileHover={{ scale: 1.05, y: -2 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={() => {
+              playPlink();
+              toggleBgMusic();
+            }}
+            className={`px-3 py-1.5 border-2 border-[#272426] rounded-lg flex items-center gap-1.5 shadow-retro-sm text-xs transition-colors ${
+              isBgMusicOn ? 'bg-[#CAF0F8] text-[#0F4C5C]' : 'bg-white text-gray-500 hover:bg-gray-50'
+            }`}
+          >
+            <Music className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Music: {isBgMusicOn ? 'ON 🎵' : 'OFF 🔇'}</span>
+          </motion.button>
 
           <motion.button
             whileHover={{ scale: 1.05, y: -2 }}
@@ -185,7 +270,7 @@ export default function App() {
             className="px-3 py-1.5 bg-white border-2 border-[#272426] rounded-lg flex items-center gap-1.5 shadow-retro-sm text-xs text-[#812D45] hover:bg-[#F4FCFE] transition-colors"
           >
             <Quote className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Movie Quote</span>
+            <span className="hidden sm:inline">Quote</span>
           </motion.button>
 
           <motion.button
