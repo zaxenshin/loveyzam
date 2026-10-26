@@ -17,6 +17,22 @@ export interface Letter {
 const storageKey = 'yzam_open_when_letters_v1';
 const CLOUD_KEY = 'letters';
 
+// Smart Merge Utility: Pinagsasama ang Local at Cloud nang walang nabubura
+const mergeLetters = (localList: Letter[], cloudList: Letter[]): Letter[] => {
+  const map = new Map<string, Letter>();
+  localList.forEach(item => map.set(item.id, item));
+  cloudList.forEach(item => {
+    if (map.has(item.id)) {
+      // Preserve opened status if already opened locally/cloud
+      const existing = map.get(item.id)!;
+      map.set(item.id, { ...item, isOpened: existing.isOpened || item.isOpened });
+    } else {
+      map.set(item.id, item);
+    }
+  });
+  return Array.from(map.values()).sort((a, b) => b.createdAt - a.createdAt);
+};
+
 export const OpenWhenLetters: React.FC<{ isEditMode: boolean }> = ({ isEditMode }) => {
   const [letters, setLetters] = useState<Letter[]>(() => {
     const saved = localStorage.getItem(storageKey);
@@ -30,7 +46,7 @@ export const OpenWhenLetters: React.FC<{ isEditMode: boolean }> = ({ isEditMode 
         content: 'Hey lovey...\n\nI just want you to know that even when we\'re apart, you\'re always in my thoughts. I love you so much.\n\n— Zam ☕',
         createdBy: 'Zam',
         isOpened: false,
-        createdAt: Date.now()
+        createdAt: Date.now() - 10000
       },
       {
         id: '2',
@@ -38,7 +54,7 @@ export const OpenWhenLetters: React.FC<{ isEditMode: boolean }> = ({ isEditMode 
         content: 'You did amazing today. I\'m so proud of you.\n\nRest well, my love. You deserve all the soft things.\n\n— Zam',
         createdBy: 'Zam',
         isOpened: false,
-        createdAt: Date.now()
+        createdAt: Date.now() - 5000
       }
     ];
   });
@@ -51,26 +67,19 @@ export const OpenWhenLetters: React.FC<{ isEditMode: boolean }> = ({ isEditMode 
   const [newUnlockDate, setNewUnlockDate] = useState('');
   const [createdBy, setCreatedBy] = useState<'Yza' | 'Zam'>('Zam');
 
-  const skipNextSave = useRef(false);
-  const hydrated = useRef(false);
+  const isInitialMount = useRef(true);
 
-  // Persist local + push cloud (skip one tick after cloud pull to avoid echo)
+  // Auto-backup to LocalStorage whenever letters state changes
   useEffect(() => {
     localStorage.setItem(storageKey, JSON.stringify(letters));
-    if (!hydrated.current) return;
-    if (skipNextSave.current) {
-      skipNextSave.current = false;
-      return;
-    }
-    saveToCloud(CLOUD_KEY, letters);
   }, [letters]);
 
-  // Initial cloud sync + live listener
+  // Real-time Cloud Sync + Smart Merge on mount
   useEffect(() => {
     let unsub: (() => void) | void;
 
-    const boot = async () => {
-      const local = (() => {
+    const bootSync = async () => {
+      const localData = (() => {
         try {
           const raw = localStorage.getItem(storageKey);
           return raw ? (JSON.parse(raw) as Letter[]) : letters;
@@ -79,27 +88,26 @@ export const OpenWhenLetters: React.FC<{ isEditMode: boolean }> = ({ isEditMode 
         }
       })();
 
-      unsub = await syncWithCloud(CLOUD_KEY, local, (cloudData) => {
-        skipNextSave.current = true;
-        setLetters(Array.isArray(cloudData) ? cloudData : []);
+      unsub = await syncWithCloud(CLOUD_KEY, localData, (cloudData) => {
+        if (Array.isArray(cloudData)) {
+          setLetters(prevLetters => mergeLetters(prevLetters, cloudData));
+        }
       });
-
-      hydrated.current = true;
     };
 
-    boot();
+    bootSync();
 
     return () => {
       if (typeof unsub === 'function') unsub();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // INSTANT CLOUD SAVE ON ADD
   const handleAddLetter = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newTitle.trim() || !newContent.trim()) return;
 
-    const letter: Letter = {
+    const newLetter: Letter = {
       id: Date.now().toString(),
       title: newTitle.trim(),
       content: newContent.trim(),
@@ -109,7 +117,13 @@ export const OpenWhenLetters: React.FC<{ isEditMode: boolean }> = ({ isEditMode 
       createdAt: Date.now()
     };
 
-    setLetters(prev => [letter, ...prev]);
+    const updatedLetters = [newLetter, ...letters];
+    
+    // Save to state, LocalStorage, and Firebase IMMEDIATELY
+    setLetters(updatedLetters);
+    localStorage.setItem(storageKey, JSON.stringify(updatedLetters));
+    saveToCloud(CLOUD_KEY, updatedLetters);
+
     setNewTitle('');
     setNewContent('');
     setNewUnlockDate('');
@@ -125,15 +139,19 @@ export const OpenWhenLetters: React.FC<{ isEditMode: boolean }> = ({ isEditMode 
       }
     }
 
-    setLetters(prev =>
-      prev.map(l => (l.id === letter.id ? { ...l, isOpened: true } : l))
-    );
+    const updated = letters.map(l => (l.id === letter.id ? { ...l, isOpened: true } : l));
+    setLetters(updated);
+    saveToCloud(CLOUD_KEY, updated);
     setSelectedLetter(letter);
   };
 
+  // INSTANT CLOUD SAVE ON DELETE
   const deleteLetter = (id: string) => {
     if (confirm('Delete this letter forever?')) {
-      setLetters(prev => prev.filter(l => l.id !== id));
+      const updated = letters.filter(l => l.id !== id);
+      setLetters(updated);
+      localStorage.setItem(storageKey, JSON.stringify(updated));
+      saveToCloud(CLOUD_KEY, updated);
       if (selectedLetter?.id === id) setSelectedLetter(null);
     }
   };
@@ -212,7 +230,7 @@ export const OpenWhenLetters: React.FC<{ isEditMode: boolean }> = ({ isEditMode 
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
               type="submit"
-              className="w-full py-2.5 bg-[#812D45] text-white font-bold text-sm rounded-lg border-2 border-[#272426] shadow-retro-sm hover:bg-[#6B2339] transition-colors flex justify-center items-center gap-2"
+              className="w-full py-2.5 bg-[#812D45] text-white font-bold text-sm rounded-lg border-2 border-[#272426] shadow-retro-sm hover:bg-[#6B2339] transition-colors flex justify-center items-center gap-2 cursor-pointer"
             >
               Seal Envelope 💌
             </motion.button>
@@ -291,7 +309,7 @@ export const OpenWhenLetters: React.FC<{ isEditMode: boolean }> = ({ isEditMode 
                         e.stopPropagation();
                         deleteLetter(letter.id);
                       }}
-                      className="p-1.5 bg-[#ffffff] border border-gray-200 shadow-sm rounded-lg text-red-300 hover:text-red-500 hover:bg-red-50 transition-colors"
+                      className="p-1.5 bg-[#ffffff] border border-gray-200 shadow-sm rounded-lg text-red-300 hover:text-red-500 hover:bg-red-50 transition-colors cursor-pointer"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                     </motion.button>
@@ -337,7 +355,7 @@ export const OpenWhenLetters: React.FC<{ isEditMode: boolean }> = ({ isEditMode 
                   <motion.button 
                     whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}
                     onClick={() => setSelectedLetter(null)}
-                    className="w-6 h-6 bg-red-400 text-white rounded-full flex items-center justify-center hover:bg-red-500 border border-black transition-colors"
+                    className="w-6 h-6 bg-red-400 text-white rounded-full flex items-center justify-center hover:bg-red-500 border border-black transition-colors cursor-pointer"
                   >
                     <X className="w-4 h-4 font-bold" />
                   </motion.button>
