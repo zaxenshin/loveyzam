@@ -17,19 +17,43 @@ export interface Letter {
 const storageKey = 'yzam_open_when_letters_v1';
 const CLOUD_KEY = 'letters';
 
-// Smart Merge Utility: Pinagsasama ang Local at Cloud nang walang nabubura
+// 🔄 Helper: Siguradong Array ang ibabalik kahit gawing Object ng Firebase ang data
+const normalizeLetters = (data: any): Letter[] => {
+  if (!data) return [];
+  if (Array.isArray(data)) {
+    return data.filter(item => item && item.id);
+  }
+  if (typeof data === 'object') {
+    return Object.values(data).filter((item: any) => item && item.id) as Letter[];
+  }
+  return [];
+};
+
+// 🧠 Smart Merge Utility: Pinagsasama ang Local at Cloud nang walang nabuburang kahit ano
 const mergeLetters = (localList: Letter[], cloudList: Letter[]): Letter[] => {
   const map = new Map<string, Letter>();
-  localList.forEach(item => map.set(item.id, item));
+  
+  // 1. Unang i-load ang cloud items
   cloudList.forEach(item => {
-    if (map.has(item.id)) {
-      const existing = map.get(item.id)!;
-      map.set(item.id, { ...item, isOpened: existing.isOpened || item.isOpened });
-    } else {
-      map.set(item.id, item);
+    if (item && item.id) map.set(item.id, item);
+  });
+
+  // 2. I-merge ang local items (panatilihin kung opened na o kung may bago)
+  localList.forEach(item => {
+    if (item && item.id) {
+      if (map.has(item.id)) {
+        const cloudItem = map.get(item.id)!;
+        map.set(item.id, {
+          ...cloudItem,
+          isOpened: item.isOpened || cloudItem.isOpened
+        });
+      } else {
+        map.set(item.id, item);
+      }
     }
   });
-  return Array.from(map.values()).sort((a, b) => b.createdAt - a.createdAt);
+
+  return Array.from(map.values()).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
 };
 
 export const OpenWhenLetters: React.FC<{ isEditMode: boolean }> = ({ isEditMode }) => {
@@ -85,9 +109,14 @@ export const OpenWhenLetters: React.FC<{ isEditMode: boolean }> = ({ isEditMode 
         }
       })();
 
-      unsub = await syncWithCloud(CLOUD_KEY, localData, (cloudData) => {
-        if (Array.isArray(cloudData)) {
-          setLetters(prevLetters => mergeLetters(prevLetters, cloudData));
+      unsub = await syncWithCloud(CLOUD_KEY, localData, (rawCloudData) => {
+        const cloudLetters = normalizeLetters(rawCloudData);
+        if (cloudLetters.length > 0) {
+          setLetters(prevLetters => {
+            const merged = mergeLetters(prevLetters, cloudLetters);
+            localStorage.setItem(storageKey, JSON.stringify(merged));
+            return merged;
+          });
         }
       });
     };
