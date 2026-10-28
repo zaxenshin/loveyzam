@@ -23,7 +23,6 @@ const mergeLetters = (localList: Letter[], cloudList: Letter[]): Letter[] => {
   localList.forEach(item => map.set(item.id, item));
   cloudList.forEach(item => {
     if (map.has(item.id)) {
-      // Preserve opened status if already opened locally/cloud
       const existing = map.get(item.id)!;
       map.set(item.id, { ...item, isOpened: existing.isOpened || item.isOpened });
     } else {
@@ -66,8 +65,6 @@ export const OpenWhenLetters: React.FC<{ isEditMode: boolean }> = ({ isEditMode 
   const [newContent, setNewContent] = useState('');
   const [newUnlockDate, setNewUnlockDate] = useState('');
   const [createdBy, setCreatedBy] = useState<'Yza' | 'Zam'>('Zam');
-
-  const isInitialMount = useRef(true);
 
   // Auto-backup to LocalStorage whenever letters state changes
   useEffect(() => {
@@ -119,7 +116,6 @@ export const OpenWhenLetters: React.FC<{ isEditMode: boolean }> = ({ isEditMode 
 
     const updatedLetters = [newLetter, ...letters];
     
-    // Save to state, LocalStorage, and Firebase IMMEDIATELY
     setLetters(updatedLetters);
     localStorage.setItem(storageKey, JSON.stringify(updatedLetters));
     saveToCloud(CLOUD_KEY, updatedLetters);
@@ -157,10 +153,10 @@ export const OpenWhenLetters: React.FC<{ isEditMode: boolean }> = ({ isEditMode 
   };
 
   return (
-    <div className="h-full flex flex-col relative bg-[#FFF8F1] -m-4 p-5 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')]">
+    <div className="h-full flex flex-col relative bg-[#FFF8F1] -m-4 p-5 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] overflow-y-auto">
       
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-4 flex-shrink-0">
         <h3 className="font-bold font-mono text-[#812D45] flex items-center gap-2 bg-white px-4 py-2 rounded-xl border-2 border-[#272426] shadow-retro">
           <Mail className="w-5 h-5 text-[#F4C2D7] fill-current" /> Open When...
         </h3>
@@ -182,50 +178,59 @@ export const OpenWhenLetters: React.FC<{ isEditMode: boolean }> = ({ isEditMode 
       <AnimatePresence>
         {showAddForm && (
           <motion.form
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
             onSubmit={handleAddLetter}
-            className="mb-6 p-4 bg-white border-2 border-[#812D45] rounded-xl space-y-4 shadow-retro-sm overflow-hidden"
+            className="mb-6 p-4 bg-white border-2 border-[#812D45] rounded-xl space-y-4 shadow-retro-sm flex-shrink-0"
           >
-            <input
-              type="text"
-              placeholder='Title (e.g. "Open when you miss me")'
-              value={newTitle}
-              onChange={e => setNewTitle(e.target.value)}
-              className="w-full px-3 py-2 border-2 border-black/15 rounded-lg text-sm outline-none focus:border-[#812D45] font-mono font-bold text-[#5C233B] transition-colors"
-              required
-            />
-            <textarea
-              placeholder="Write your letter here..."
-              value={newContent}
-              onChange={e => setNewContent(e.target.value)}
-              rows={5}
-              className="w-full px-3 py-2 border-2 border-black/15 rounded-lg text-sm outline-none focus:border-[#812D45] resize-none font-sans transition-colors"
-              required
-            />
-            <div className="flex gap-3">
+            <div>
+              <label className="text-[10px] font-bold text-[#812D45] mb-1 block">Letter Title</label>
+              <input
+                type="text"
+                placeholder='Title (e.g. "Open when you miss me")'
+                value={newTitle}
+                onChange={e => setNewTitle(e.target.value)}
+                className="w-full px-3 py-2 border-2 border-black/15 rounded-lg text-sm outline-none focus:border-[#812D45] font-mono font-bold text-[#5C233B] transition-colors bg-white"
+                required
+              />
+            </div>
+
+            <div>
+              <label className="text-[10px] font-bold text-[#812D45] mb-1 block">Message / Content</label>
+              <textarea
+                placeholder="Write your letter here..."
+                value={newContent}
+                onChange={e => setNewContent(e.target.value)}
+                rows={5}
+                className="w-full px-3 py-2 border-2 border-black/15 rounded-lg text-sm outline-none focus:border-[#812D45] resize-y min-h-[120px] font-sans transition-colors bg-white text-gray-800"
+                required
+              />
+            </div>
+
+            <div className="flex flex-col sm:flex-row gap-3">
               <div className="flex-1">
                 <label className="text-[10px] font-bold text-[#812D45] mb-1 block">Unlock Date (optional)</label>
                 <input
                   type="date"
                   value={newUnlockDate}
                   onChange={e => setNewUnlockDate(e.target.value)}
-                  className="w-full px-2 py-2 border-2 border-black/15 rounded-lg text-sm outline-none focus:border-[#812D45] transition-colors"
+                  className="w-full px-2 py-2 border-2 border-black/15 rounded-lg text-sm outline-none focus:border-[#812D45] transition-colors bg-white text-gray-800"
                 />
               </div>
-              <div className="w-1/3">
+              <div className="w-full sm:w-1/3">
                 <label className="text-[10px] font-bold text-[#812D45] mb-1 block">From</label>
                 <select
                   value={createdBy}
                   onChange={e => setCreatedBy(e.target.value as 'Yza' | 'Zam')}
-                  className="w-full px-2 py-2 border-2 border-black/15 rounded-lg text-sm font-bold outline-none focus:border-[#812D45] transition-colors"
+                  className="w-full px-2 py-2 border-2 border-black/15 rounded-lg text-sm font-bold outline-none focus:border-[#812D45] transition-colors bg-white text-gray-800"
                 >
                   <option value="Zam">Zam</option>
                   <option value="Yza">Yza</option>
                 </select>
               </div>
             </div>
+
             <motion.button
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
@@ -239,11 +244,11 @@ export const OpenWhenLetters: React.FC<{ isEditMode: boolean }> = ({ isEditMode 
       </AnimatePresence>
 
       {/* Letters Grid */}
-      <motion.div layout className="grid grid-cols-1 sm:grid-cols-2 gap-4 overflow-y-auto pr-1 pb-4">
+      <motion.div layout className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 pb-6">
         {letters.length === 0 && (
           <motion.div 
             initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-            className="col-span-2 flex flex-col items-center justify-center py-12 text-gray-400 opacity-60"
+            className="col-span-full flex flex-col items-center justify-center py-12 text-gray-400 opacity-60"
           >
             <motion.div animate={{ y: [0, -10, 0] }} transition={{ repeat: Infinity, duration: 3 }}>
               <Mail className="w-12 h-12 mb-2" />
