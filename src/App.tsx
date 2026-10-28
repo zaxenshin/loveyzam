@@ -26,20 +26,101 @@ const IS_PROPOSAL_LIVE = false;
 // ==========================================
 
 const FloatingSparkles = () => {
-  const sparkles = Array.from({ length: 15 });
+  // 30 MALALAKING PARTICLES + NEON GLOWS (Walang ✨ Emoji)
+  const particles = Array.from({ length: 30 }).map((_, i) => {
+    const vibrantBlues = [
+      '#00F0FF', // Electric Cyan
+      '#00B4D8', // Bright Sky Blue
+      '#48CAE4', // Neon Cyan Blue
+      '#90E0EF', // Glowing Ice Blue
+      '#CAF0F8', // Pure Bright White-Blue
+      '#3A86FF', // Royal Blue
+    ];
+
+    const symbols = ['✦', '✧', '✶', '★', '🩵', '❄', '✦', '✧'];
+    const symbol = symbols[Math.floor(Math.random() * symbols.length)];
+    const color = vibrantBlues[Math.floor(Math.random() * vibrantBlues.length)];
+
+    // MALALAKING SIZES: 22px hanggang 48px
+    const sizePx = Math.floor(Math.random() * 26) + 22; 
+
+    return {
+      id: i,
+      color,
+      symbol,
+      sizePx,
+      left: `${Math.random() * 100}vw`,
+      duration: Math.random() * 10 + 8, // 8s–18s float speed
+      delay: Math.random() * 8,
+      xDrift: (Math.random() - 0.5) * 120, // Swaying motion
+      opacityPeak: Math.random() * 0.3 + 0.7, // 0.7 to 1.0
+    };
+  });
+
   return (
     <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden">
-      {sparkles.map((_, i) => (
+      {/* 🌟 30 VIBRANT FLOATING BLUE STARS & SPARKLES */}
+      {particles.map((p) => (
         <motion.div
-          key={i}
-          initial={{ y: '100vh', opacity: 0, scale: Math.random() * 0.5 + 0.5 }}
-          animate={{ y: '-10vh', opacity: [0, 1, 0] }}
-          transition={{ duration: Math.random() * 10 + 10, repeat: Infinity, ease: 'linear', delay: Math.random() * 10 }}
-          className="absolute text-[#CAF0F8] opacity-60"
-          style={{ left: `${Math.random() * 100}vw` }}
+          key={p.id}
+          initial={{
+            y: '110vh',
+            x: 0,
+            opacity: 0,
+            rotate: 0,
+          }}
+          animate={{
+            y: '-15vh',
+            x: p.xDrift,
+            opacity: [0, p.opacityPeak, p.opacityPeak, 0],
+            rotate: [0, 180, 360],
+          }}
+          transition={{
+            duration: p.duration,
+            repeat: Infinity,
+            ease: 'easeInOut',
+            delay: p.delay,
+          }}
+          className="absolute font-bold select-none"
+          style={{
+            left: p.left,
+            color: p.color,
+            fontSize: `${p.sizePx}px`,
+            filter: `drop-shadow(0 0 8px ${p.color}) drop-shadow(0 0 16px ${p.color})`,
+          }}
         >
-          ✦
+          {p.symbol}
         </motion.div>
+      ))}
+
+      {/* 🔮 6 LARGE GLOWING BLUE ORBS IN BACKGROUND */}
+      {Array.from({ length: 6 }).map((_, i) => (
+        <motion.div
+          key={`orb-${i}`}
+          className="absolute rounded-full blur-3xl pointer-events-none"
+          style={{
+            left: `${(i * 30) % 100}vw`,
+            top: `${Math.random() * 100}vh`,
+            width: `${Math.random() * 220 + 150}px`,
+            height: `${Math.random() * 220 + 150}px`,
+            background:
+              i % 2 === 0
+                ? 'radial-gradient(circle, rgba(0,240,255,0.25) 0%, transparent 70%)'
+                : 'radial-gradient(circle, rgba(0,180,216,0.30) 0%, transparent 70%)',
+          }}
+          animate={{
+            y: [0, -50, 30, 0],
+            x: [0, 30, -30, 0],
+            scale: [1, 1.25, 0.9, 1],
+            opacity: [0.35, 0.7, 0.4, 0.35],
+          }}
+          transition={{
+            duration: Math.random() * 8 + 10,
+            repeat: Infinity,
+            ease: 'easeInOut',
+            delay: Math.random() * 4,
+          }}
+        />
       ))}
     </div>
   );
@@ -71,7 +152,7 @@ export default function App() {
 
   // 🎵 BACKGROUND MUSIC AUTOPLAY & TOGGLE LOGIC
   const bgAudioRef = useRef<HTMLAudioElement>(null);
-  const [isBgMusicOn, setIsBgMusicOn] = useState(true);
+  const [isBgMusicOn, setIsBgMusicOn] = useState(false);
 
   useEffect(() => {
     const audio = bgAudioRef.current;
@@ -79,28 +160,45 @@ export default function App() {
 
     audio.volume = 0.4; // Soft volume for background instrumental
 
-    const attemptPlay = () => {
+    const startAudio = () => {
       audio.play()
         .then(() => {
           setIsBgMusicOn(true);
+          removeInteractionListeners();
         })
         .catch(() => {
-          // If blocked by browser policy, wait for first user click/tap anywhere
-          const handleFirstInteraction = () => {
-            audio.play().then(() => {
-              setIsBgMusicOn(true);
-            }).catch(() => {});
-            
-            window.removeEventListener('click', handleFirstInteraction);
-            window.removeEventListener('touchstart', handleFirstInteraction);
-          };
-
-          window.addEventListener('click', handleFirstInteraction);
-          window.addEventListener('touchstart', handleFirstInteraction);
+          setIsBgMusicOn(false);
         });
     };
 
-    attemptPlay();
+    const handleInteraction = () => {
+      startAudio();
+    };
+
+    const removeInteractionListeners = () => {
+      window.removeEventListener('click', handleInteraction);
+      window.removeEventListener('touchstart', handleInteraction);
+      window.removeEventListener('pointerdown', handleInteraction);
+      window.removeEventListener('keydown', handleInteraction);
+    };
+
+    // Subukan munang ipatugtog agad
+    audio.play()
+      .then(() => {
+        setIsBgMusicOn(true);
+      })
+      .catch(() => {
+        setIsBgMusicOn(false);
+        // Kapag na-block ng browser, mag-aabang sa KAHIT ANONG UNANG CLICK/TAP sa screen
+        window.addEventListener('click', handleInteraction, { once: true });
+        window.addEventListener('touchstart', handleInteraction, { once: true });
+        window.addEventListener('pointerdown', handleInteraction, { once: true });
+        window.addEventListener('keydown', handleInteraction, { once: true });
+      });
+
+    return () => {
+      removeInteractionListeners();
+    };
   }, []);
 
   const toggleBgMusic = () => {
