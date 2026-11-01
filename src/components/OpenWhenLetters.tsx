@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, Trash2, Mail, Lock, Unlock, X, Heart } from 'lucide-react';
-import { syncWithCloud, saveToCloud } from '../utils/firebase';
+import { syncWithCloud, saveLetterToCloud, deleteLetterFromCloud } from '../utils/firebase';
 
 export interface Letter {
   id: string;
@@ -17,7 +17,7 @@ export interface Letter {
 const storageKey = 'yzam_open_when_letters_v1';
 const CLOUD_KEY = 'letters';
 
-// 🔄 Helper: Siguradong Array ang ibabalik kahit gawing Object ng Firebase ang data
+// 🔄 Helper: Guaranteed Array conversion maski anong format ng Firebase
 const normalizeLetters = (data: any): Letter[] => {
   if (!data) return [];
   if (Array.isArray(data)) {
@@ -29,16 +29,14 @@ const normalizeLetters = (data: any): Letter[] => {
   return [];
 };
 
-// 🧠 Smart Merge Utility: Pinagsasama ang Local at Cloud nang walang nabuburang kahit ano
+// 🧠 Smart Merge Utility: Pinagsasama ang Local at Cloud nang walang nabubura
 const mergeLetters = (localList: Letter[], cloudList: Letter[]): Letter[] => {
   const map = new Map<string, Letter>();
   
-  // 1. Unang i-load ang cloud items
   cloudList.forEach(item => {
     if (item && item.id) map.set(item.id, item);
   });
 
-  // 2. I-merge ang local items (panatilihin kung opened na o kung may bago)
   localList.forEach(item => {
     if (item && item.id) {
       if (map.has(item.id)) {
@@ -90,12 +88,7 @@ export const OpenWhenLetters: React.FC<{ isEditMode: boolean }> = ({ isEditMode 
   const [newUnlockDate, setNewUnlockDate] = useState('');
   const [createdBy, setCreatedBy] = useState<'Yza' | 'Zam'>('Zam');
 
-  // Auto-backup to LocalStorage whenever letters state changes
-  useEffect(() => {
-    localStorage.setItem(storageKey, JSON.stringify(letters));
-  }, [letters]);
-
-  // Real-time Cloud Sync + Smart Merge on mount
+  // Real-time Cloud Sync + Automatic Seed Sync
   useEffect(() => {
     let unsub: (() => void) | void;
 
@@ -109,15 +102,19 @@ export const OpenWhenLetters: React.FC<{ isEditMode: boolean }> = ({ isEditMode 
         }
       })();
 
-      unsub = await syncWithCloud(CLOUD_KEY, localData, (rawCloudData) => {
+      unsub = syncWithCloud(CLOUD_KEY, localData, (rawCloudData) => {
         const cloudLetters = normalizeLetters(rawCloudData);
-        if (cloudLetters.length > 0) {
-          setLetters(prevLetters => {
-            const merged = mergeLetters(prevLetters, cloudLetters);
-            localStorage.setItem(storageKey, JSON.stringify(merged));
-            return merged;
-          });
-        }
+        const merged = mergeLetters(localData, cloudLetters);
+
+        // 🚀 AUTOMATIC SEED: I-upload sa Firebase ang anumang sulat na nasa Local lang para ma-receive ng Phone
+        merged.forEach(letter => {
+          if (!cloudLetters.some(c => c.id === letter.id)) {
+            saveLetterToCloud(letter);
+          }
+        });
+
+        setLetters(merged);
+        localStorage.setItem(storageKey, JSON.stringify(merged));
       });
     };
 
@@ -143,11 +140,13 @@ export const OpenWhenLetters: React.FC<{ isEditMode: boolean }> = ({ isEditMode 
       createdAt: Date.now()
     };
 
-    const updatedLetters = [newLetter, ...letters];
-    
+    // 1. Save directly to its own Firebase node
+    saveLetterToCloud(newLetter);
+
+    // 2. Instant Local state update
+    const updatedLetters = [newLetter, ...letters.filter(l => l.id !== newLetter.id)];
     setLetters(updatedLetters);
     localStorage.setItem(storageKey, JSON.stringify(updatedLetters));
-    saveToCloud(CLOUD_KEY, updatedLetters);
 
     setNewTitle('');
     setNewContent('');
@@ -164,19 +163,23 @@ export const OpenWhenLetters: React.FC<{ isEditMode: boolean }> = ({ isEditMode 
       }
     }
 
-    const updated = letters.map(l => (l.id === letter.id ? { ...l, isOpened: true } : l));
-    setLetters(updated);
-    saveToCloud(CLOUD_KEY, updated);
+    const updated = { ...letter, isOpened: true };
+    saveLetterToCloud(updated);
+
+    const updatedList = letters.map(l => (l.id === letter.id ? updated : l));
+    setLetters(updatedList);
+    localStorage.setItem(storageKey, JSON.stringify(updatedList));
     setSelectedLetter(letter);
   };
 
-  // INSTANT CLOUD SAVE ON DELETE
+  // INSTANT CLOUD DELETE
   const deleteLetter = (id: string) => {
     if (confirm('Delete this letter forever?')) {
+      deleteLetterFromCloud(id);
+
       const updated = letters.filter(l => l.id !== id);
       setLetters(updated);
       localStorage.setItem(storageKey, JSON.stringify(updated));
-      saveToCloud(CLOUD_KEY, updated);
       if (selectedLetter?.id === id) setSelectedLetter(null);
     }
   };
@@ -306,10 +309,8 @@ export const OpenWhenLetters: React.FC<{ isEditMode: boolean }> = ({ isEditMode 
                   ${letter.isOpened ? 'border-[#F4C2D7] bg-[#FFF5F8]' : isLocked ? 'border-gray-400 bg-gray-50' : 'border-[#812D45]'}
                 `}
               >
-                {/* Flap/Top Decoration */}
                 <div className={`absolute top-0 left-0 w-full h-2 opacity-80 ${isLocked ? 'bg-gray-400' : 'bg-[#F4C2D7]'}`}></div>
 
-                {/* Stamp Icon */}
                 <div className="absolute top-3 right-3 opacity-40 group-hover:opacity-100 transition-opacity">
                   {isLocked ? (
                     <Lock className="w-5 h-5 text-gray-500" />
@@ -350,7 +351,6 @@ export const OpenWhenLetters: React.FC<{ isEditMode: boolean }> = ({ isEditMode 
                   )}
                 </div>
 
-                {/* Locked Overlay Pattern */}
                 {isLocked && (
                   <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/diagonal-stripes.png')] opacity-10 pointer-events-none"></div>
                 )}

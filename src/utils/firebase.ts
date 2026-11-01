@@ -1,5 +1,5 @@
 import { initializeApp } from "firebase/app";
-import { getDatabase, ref, set, onValue } from "firebase/database";
+import { getDatabase, ref, set, remove, onValue, update } from "firebase/database";
 import type { Unsubscribe } from "firebase/database";
 
 const firebaseConfig = {
@@ -15,31 +15,48 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 export const db = getDatabase(app);
 
+// 💌 Save single letter directly to cloud without wiping others
+export async function saveLetterToCloud(letter: any): Promise<void> {
+  try {
+    const nodeRef = ref(db, `letters/${letter.id}`);
+    await set(nodeRef, letter);
+  } catch (err) {
+    console.warn("[Firebase] Save letter failed:", err);
+  }
+}
+
+// 🗑️ Delete single letter from cloud
+export async function deleteLetterFromCloud(letterId: string): Promise<void> {
+  try {
+    const nodeRef = ref(db, `letters/${letterId}`);
+    await remove(nodeRef);
+  } catch (err) {
+    console.warn("[Firebase] Delete letter failed:", err);
+  }
+}
+
 export function syncWithCloud<T>(
   nodePath: string,
   localItems: T,
   onCloudUpdate: (cloudData: T) => void
 ): Unsubscribe {
   const nodeRef = ref(db, nodePath);
-  let isFirstCheck = true;
 
   const unsubscribe = onValue(nodeRef, (snapshot) => {
-    if (isFirstCheck) {
-      isFirstCheck = false;
-      if (!snapshot.exists()) {
-        if (localItems !== undefined && localItems !== null) {
-          set(nodeRef, localItems).catch((err) =>
-            console.warn(`[Firebase] Initial upload failed for ${nodePath}:`, err)
-          );
-        }
-        return;
-      }
-    }
-
     if (snapshot.exists()) {
       const val = snapshot.val();
       if (val !== null && val !== undefined) {
         onCloudUpdate(val as T);
+      }
+    } else {
+      if (Array.isArray(localItems) && localItems.length > 0) {
+        const initialMap: Record<string, any> = {};
+        localItems.forEach((item: any) => {
+          if (item && item.id) initialMap[item.id] = item;
+        });
+        update(ref(db, nodePath), initialMap).catch((err) =>
+          console.warn(`[Firebase] Initial seed failed:`, err)
+        );
       }
     }
   });
